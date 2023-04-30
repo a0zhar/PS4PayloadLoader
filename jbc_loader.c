@@ -2,7 +2,7 @@
 #include <netinet/in.h>
 #include <sys/mman.h>
 #define pid_t jbc_pid_t
-#include "ps4-libjbc/jailbreak.h"
+#include "jbcLib/jailbreak.h"
 #undef pid_t
 
 void* dlopen(const char* path, int mode);
