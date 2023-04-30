@@ -1,5 +1,4 @@
 #pragma once
-#include <stdint.h>
 #include "defs.h"
 
 enum { CWD_KEEP, CWD_ROOT, CWD_RESET };

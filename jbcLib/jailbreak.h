@@ -1,9 +1,7 @@
 #pragma once
-#include <stdint.h>
 #include "defs.h"
 
-struct jbc_cred
-{
+struct jbc_cred {
     uid_t uid;
     uid_t ruid;
     uid_t svuid;
