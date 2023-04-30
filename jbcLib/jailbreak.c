@@ -64,11 +64,11 @@ int jbc_get_cred(struct jbc_cred* ans) {
     uintptr_t ucred = jbc_krw_read64(proc + 0x40, KERNEL_HEAP);
     uintptr_t fd = jbc_krw_read64(proc + 0x48, KERNEL_HEAP);
 
-    if (ppcopyout(&ans->uid, 1 + &ans->svuid, ucred + 4) ||
-        ppcopyout(&ans->rgid, 1 + &ans->svgid, ucred + 20) ||
-        ppcopyout(&ans->prison, 1 + &ans->prison, ucred + 0x30) ||
-        ppcopyout(&ans->cdir, 1 + &ans->jdir, fd + 0x10) ||
-        ppcopyout(&ans->sceProcType, 1 + &ans->sceProcCap, ucred + 88))
+    if (ppcopyout(&ans->uid, 1 + &ans->svuid, ucred + 4)
+        || ppcopyout(&ans->rgid, 1 + &ans->svgid, ucred + 20)
+        || ppcopyout(&ans->prison, 1 + &ans->prison, ucred + 0x30)
+        || ppcopyout(&ans->cdir, 1 + &ans->jdir, fd + 0x10)
+        || ppcopyout(&ans->sceProcType, 1 + &ans->sceProcCap, ucred + 88))
         return -1;
 
     return 0;
@@ -80,11 +80,11 @@ static int jbc_set_cred_internal(const struct jbc_cred* ans) {
     uintptr_t ucred = jbc_krw_read64(proc + 0x40, KERNEL_HEAP);
     uintptr_t fd = jbc_krw_read64(proc + 0x48, KERNEL_HEAP);
 
-    if (ppcopyin(&ans->uid, 1 + &ans->svuid, ucred + 4) ||
-        ppcopyin(&ans->rgid, 1 + &ans->svgid, ucred + 20) ||
-        ppcopyin(&ans->prison, 1 + &ans->prison, ucred + 0x30) ||
-        ppcopyin(&ans->cdir, 1 + &ans->jdir, fd + 0x10) ||
-        ppcopyin(&ans->sceProcType, 1 + &ans->sceProcCap, ucred + 88))
+    if (ppcopyin(&ans->uid, 1 + &ans->svuid, ucred + 4)
+        || ppcopyin(&ans->rgid, 1 + &ans->svgid, ucred + 20)
+        || ppcopyin(&ans->prison, 1 + &ans->prison, ucred + 0x30)
+        || ppcopyin(&ans->cdir, 1 + &ans->jdir, fd + 0x10)
+        || ppcopyin(&ans->sceProcType, 1 + &ans->sceProcCap, ucred + 88))
         return -1;
     return 0;
 }
@@ -109,8 +109,7 @@ int jbc_jailbreak_cred(struct jbc_cred* ans) {
 }
 
 static int jbc_open_this(const struct jbc_cred* cred0, uintptr_t vnode) {
-    if (!vnode)
-        return -1;
+    if (!vnode) return -1;
     struct jbc_cred cred = *cred0;
     jbc_jailbreak_cred(&cred);
     cred.cdir = cred.rdir = cred.jdir = vnode;
@@ -133,43 +132,53 @@ static int return0(void) {
     return 0;
 }
 
-static void* fake_vtable[16];
-
+static void* fake_vtable[16] = {};
+/* Sets the credentials of the current process to the specified credentials.
+ * @param newp Pointer to the new credentials to set.
+ * @return 0 on success, -1 on failure.*/
 int jbc_set_cred(const struct jbc_cred* newp) {
-    struct jbc_cred old, neww = *newp;
-    if (jbc_get_cred(&old))
-        return -1;
-
-    if (old.cdir && !neww.cdir) neww.cdir = jbc_get_rootvnode();
-    if (old.rdir && !neww.rdir) neww.rdir = jbc_get_rootvnode();
-    if (old.jdir && !neww.jdir) neww.jdir = jbc_get_rootvnode();
-
-    int cdir_fd = jbc_open_this(&old, neww.cdir);
-    int rdir_fd = jbc_open_this(&old, neww.rdir);
-    int jdir_fd = jbc_open_this(&old, neww.jdir);
-    struct jbc_cred elevated = neww;
-    elevated.cdir = old.cdir;
-    elevated.jdir = old.jdir;
-    elevated.rdir = old.rdir;
+    struct jbc_cred old_cred;
+    if (jbc_get_cred(&old_cred)) return -1; // get the current process's credentials
+    struct jbc_cred new_cred = *newp; // copy the new credentials
+    // if the old credentials had a null current directory, set it to the root vnode
+    if (old_cred.cdir && !new_cred.cdir) new_cred.cdir = jbc_get_rootvnode();
+    // if the old credentials had a null root directory, set it to the root vnode
+    if (old_cred.rdir && !new_cred.rdir) new_cred.rdir = jbc_get_rootvnode();
+    // if the old credentials had a null jail directory, set it to the root vnode
+    if (old_cred.jdir && !new_cred.jdir) new_cred.jdir = jbc_get_rootvnode();
+    // open the current directory with the old credentials
+    int cdir_fd = jbc_open_this(&old_cred, new_cred.cdir);
+    // open the root directory with the old credentials
+    int rdir_fd = jbc_open_this(&old_cred, new_cred.rdir);
+    // open the jail directory with the old credentials
+    int jdir_fd = jbc_open_this(&old_cred, new_cred.jdir);
+    // create a new set of credentials with the old credentials' directories
+    struct jbc_cred elevated_cred = new_cred;
+    elevated_cred.cdir = old_cred.cdir;
+    elevated_cred.jdir = old_cred.jdir;
+    elevated_cred.rdir = old_cred.rdir;
     //this offset is the same in 5.05-9.60, probably safe to use
     uint32_t rc;
-    if (elevated.prison) {
-        if (jbc_krw_memcpy((uintptr_t)&rc, elevated.prison + 0x14, sizeof(rc), KERNEL_HEAP) &&
-            jbc_krw_memcpy((uintptr_t)&rc, elevated.prison + 0x14, sizeof(rc), KERNEL_TEXT))
+    // if the new credentials have a prison pointer, increment the reference count
+    if (elevated_cred.prison) {
+        if (jbc_krw_memcpy((uintptr_t)&rc, elevated_cred.prison + 0x14, sizeof(rc), KERNEL_HEAP) &&
+            jbc_krw_memcpy((uintptr_t)&rc, elevated_cred.prison + 0x14, sizeof(rc), KERNEL_TEXT))
             return -1;
         rc++;
-        if (jbc_krw_memcpy(elevated.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_HEAP) &&
-            jbc_krw_memcpy(elevated.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_TEXT))
+        if (jbc_krw_memcpy(elevated_cred.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_HEAP) &&
+            jbc_krw_memcpy(elevated_cred.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_TEXT))
             return -1;
     }
-    if (jbc_set_cred_internal(&elevated)) return -1;
-    if (old.prison) {
-        if (jbc_krw_memcpy((uintptr_t)&rc, old.prison + 0x14, sizeof(rc), KERNEL_HEAP) &&
-            jbc_krw_memcpy((uintptr_t)&rc, old.prison + 0x14, sizeof(rc), KERNEL_TEXT))
+    // set the new credentials
+    if (jbc_set_cred_internal(&elevated_cred)) return -1;
+    // if the old credentials have a prison pointer, decrement the reference count
+    if (old_cred.prison) {
+        if (jbc_krw_memcpy((uintptr_t)&rc, old_cred.prison + 0x14, sizeof(rc), KERNEL_HEAP) &&
+            jbc_krw_memcpy((uintptr_t)&rc, old_cred.prison + 0x14, sizeof(rc), KERNEL_TEXT))
             return -1;
         rc--;
-        if (jbc_krw_memcpy(old.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_HEAP) &&
-            jbc_krw_memcpy(old.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_TEXT))
+        if (jbc_krw_memcpy(old_cred.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_HEAP) &&
+            jbc_krw_memcpy(old_cred.prison + 0x14, (uintptr_t)&rc, sizeof(rc), KERNEL_TEXT))
             return -1;
     }
     uintptr_t td = jbc_krw_get_td();
@@ -181,7 +190,6 @@ int jbc_set_cred(const struct jbc_cred* newp) {
     for (int i = 0; i < 3; i++) {
         if (fds[i] < 0)
             continue;
-
         uintptr_t file = jbc_krw_read64(ofiles + 8 * fds[i], KERNEL_HEAP);
         if (swap64(file, KERNEL_HEAP, fd + 0x10 + 8 * i, KERNEL_HEAP))
             return -1;
