@@ -1,4 +1,3 @@
-#include "defs.h"
 #include "kernelrw.h"
 #include "jailbreak.h"
 
