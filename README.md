@@ -1,4 +1,5 @@
 # PS4 "PAYLOAD LAUNCHER" SOURCE CODE
+#### This Repo builds the JS File responsible for causing the 'Waiting for clients' -> 'Launching Payload' notifications, and for loading and executing payload in memory... After loading a payload from a PS4 Exploit Host.
 
 ### Translated Building Instructions
 <details>
