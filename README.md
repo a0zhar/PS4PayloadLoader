@@ -54,8 +54,8 @@
   3. 이러한 두 명령을 **지정된 순서대로** 실행한 후 루트 디렉토리에 `loader.js`라는 파일이 나타납니다. 이 JavaScript 파일을 PS4 웹 호스트의 Payload Loader ROP 체인 파일에 포함하기만 하면 됩니다. `loader.js` 파일은 메모리로 페이로드를 로드하고 "페이로드 시작 중" 메시지를 표시하는 역할을 합니다.
 </details>
 
-## Explaination of Loader.js
-  - The [netcat.c](https://github.com/sleirsgoevy/ps4jb2/blob/16f2e8878d462ba0abc78c04e4055444dcf8aa4a/src/netcat.c) for PS4 6.72 will load 65536 bytes at the address stored in the JS variable `mira_blob` into RWX memory and jump to it. At this point, only the minimal patches (amd64_syscall, mmap, mprotect, kexec) are applied, i.e., the process is still 'sandboxed.' After building this repo, the `mira_blob` variable inside of `loader.js` will contain the compiled **payload.bin** (miraloader i guess) data in the form of a byte array.
+## What is the purpose of loader.js?
+  - The [netcat.c](https://github.com/sleirsgoevy/ps4jb2/blob/16f2e8878d462ba0abc78c04e4055444dcf8aa4a/src/netcat.c) for PS4 6.72 will load 65536 bytes at the address stored in the JS variable `mira_blob` into RWX memory and jump to it. At this point, only the minimal patches (amd64_syscall, mmap, mprotect, kexec) are applied, i.e., the process is still 'sandboxed.' After building this repo, the `mira_blob` variable inside of `loader.js` will contain the compiled **payload.bin** (miraloader i guess) in the form of a byte array. The loader.js should be included before the [netcat.js](https://github.com/sleirsgoevy/ps4jb2/blob/16f2e8878d462ba0abc78c04e4055444dcf8aa4a/netcat.js) file in the web page.
 ## Credits:
 - <a href="https://github.com/sleirsgoevy">Sleirsgoevy</a> For the original files...<br>
 - <a href="https://github.com/a0zhar">Me</a> For maintaining/updating the files of this repository.
